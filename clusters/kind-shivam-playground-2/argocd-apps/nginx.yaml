@@ -1,7 +1,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: playground-2-nginx
+  name: kind-shivam-playground-2.nginx
   namespace: argocd
 spec:
   project: default
