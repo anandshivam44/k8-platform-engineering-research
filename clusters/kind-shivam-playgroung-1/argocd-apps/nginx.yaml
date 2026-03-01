@@ -1,0 +1,27 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: nginx
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://github.com/anandshivam44/platform-engineering-research.git
+      targetRevision: main
+      ref: values
+    - repoURL: https://charts.bitnami.com/bitnami
+      chart: nginx
+      targetRevision: "22.5.3"
+      helm:
+        valueFiles:
+          - $values/base/nginx-values.yaml
+          - $values/k8s-manifests/nginx/helm-overrides/kind-shivam-playgroung-1.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: nginx
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

@@ -1,242 +1,150 @@
-# ArgoCD Deployment Runbook
+# ArgoCD Multi-Cluster Runbook
 
-## Overview
+ArgoCD via Helmfile. Management cluster: `kind-shivam-playgroung-1` (dev). Remote cluster: `kind-shivam-playground-2` (prod). Namespace: `argocd`.
 
-This runbook covers deploying, accessing, upgrading, and troubleshooting ArgoCD on a kind cluster using Helmfile.
+See [ARCHITECTURE.md](ARCHITECTURE.md) for the full design.
 
-| Property       | Value                                  |
-|----------------|----------------------------------------|
-| ArgoCD Version | v3.3.2                                 |
-| Helm Chart     | `argo/argo-cd` v9.4.5                  |
-| Cluster        | `kind-shivam-playgroung-1`             |
-| Namespace      | `argocd`                               |
-| Deployment     | Helmfile (`argocd-setup/helmfile.yaml`) |
+**Prerequisites:** `kind`, `kubectl`, `helm`, `helmfile`, `argocd` CLI
 
----
-
-## Prerequisites
-
-| Tool       | Install Command                   | Purpose                     |
-|------------|-----------------------------------|-----------------------------|
-| `kind`     | `brew install kind`               | Local Kubernetes cluster    |
-| `kubectl`  | `brew install kubernetes-cli`     | Cluster interaction         |
-| `helm`     | `brew install helm`               | Kubernetes package manager  |
-| `helmfile` | `brew install helmfile`           | Declarative Helm releases   |
-
----
-
-## Repository Structure
-
-```
-argocd-research/
-├── argocd-setup/
-│   ├── helmfile.yaml           # Helm release declaration
-│   └── values/
-│       └── argocd.yaml         # ArgoCD chart values (resources, service, config)
-├── clusters/
-│   └── kind-shivam-playgroung-1/
-│       ├── app-of-apps.yaml    # ArgoCD App-of-Apps Application manifest
-│       └── apps/
-│           └── nginx.yaml      # Example managed application
-└── RUNBOOK.md
+```bash
+brew install kind kubectl helm helmfile argocd
 ```
 
 ---
 
-## 1. Create the Kind Cluster
+## 1. Create clusters
 
 ```bash
 kind create cluster --name shivam-playgroung-1
+kind create cluster --name shivam-playground-2
 ```
 
-Verify the cluster is up:
+Verify:
 
 ```bash
-kubectl cluster-info --context kind-shivam-playgroung-1
 kubectl get nodes --context kind-shivam-playgroung-1
+kubectl get nodes --context kind-shivam-playground-2
 ```
 
----
-
-## 2. Deploy ArgoCD via Helmfile
+## 2. Deploy ArgoCD on the management cluster (dev)
 
 ```bash
 cd argocd-setup
 helmfile sync --kube-context kind-shivam-playgroung-1
-```
-
-Helmfile will:
-1. Add the `argo` Helm repository (`https://argoproj.github.io/argo-helm`)
-2. Create the `argocd` namespace automatically
-3. Install the `argo/argo-cd` chart with values from `values/argocd.yaml`
-
-Verify all pods are running:
-
-```bash
 kubectl get pods -n argocd --context kind-shivam-playgroung-1
 ```
 
-Expected output — all 7 pods in `Running` state:
-
-```
-argocd-application-controller-0
-argocd-applicationset-controller-*
-argocd-dex-server-*
-argocd-notifications-controller-*
-argocd-redis-*
-argocd-repo-server-*
-argocd-server-*
-```
-
----
-
-## 3. Access the ArgoCD UI
-
-The `argocd-server` service is `ClusterIP`. Use port-forwarding to access the UI locally:
+## 3. Access ArgoCD UI
 
 ```bash
-kubectl port-forward svc/argocd-server -n argocd 8080:443 \
-  --context kind-shivam-playgroung-1
+kubectl port-forward svc/argocd-server -n argocd 8080:443 --context kind-shivam-playgroung-1
 ```
 
-Open in browser: **https://localhost:8080** (accept the self-signed certificate warning)
-
-### Retrieve the Initial Admin Password
+Open **https://localhost:8080**. Username: `admin`. Password:
 
 ```bash
-kubectl -n argocd --context kind-shivam-playgroung-1 \
-  get secret argocd-initial-admin-secret \
+kubectl -n argocd --context kind-shivam-playgroung-1 get secret argocd-initial-admin-secret \
   -o jsonpath="{.data.password}" | base64 -d && echo
 ```
 
-| Field    | Value                                    |
-|----------|------------------------------------------|
-| Username | `admin`                                  |
-| Password | _(output of the command above)_          |
+## 4. Register remote cluster (prod) in ArgoCD
 
-> **Security note:** Delete the initial secret after saving the password:
-> ```bash
-> kubectl delete secret argocd-initial-admin-secret -n argocd \
->   --context kind-shivam-playgroung-1
-> ```
-
----
-
-## 4. Component Resource Limits
-
-Resources are defined in `argocd-setup/values/argocd.yaml`.
-
-| Component              | CPU Request | CPU Limit | Memory Request | Memory Limit |
-|------------------------|-------------|-----------|----------------|--------------|
-| `controller`           | 100m        | 500m      | 128Mi          | 512Mi        |
-| `server`               | 50m         | 200m      | 64Mi           | 256Mi        |
-| `repoServer`           | 50m         | 200m      | 64Mi           | 256Mi        |
-| `applicationSet`       | 25m         | 100m      | 32Mi           | 128Mi        |
-| `notifications`        | 25m         | 100m      | 32Mi           | 128Mi        |
-| `dex`                  | 10m         | 50m       | 32Mi           | 64Mi         |
-| `redis`                | 25m         | 100m      | 32Mi           | 128Mi        |
-
----
-
-## 5. Upgrade ArgoCD
-
-To change chart version or update values, edit `argocd-setup/helmfile.yaml` or `argocd-setup/values/argocd.yaml`, then run:
+Log in to ArgoCD CLI:
 
 ```bash
-cd argocd-setup
-helmfile sync --kube-context kind-shivam-playgroung-1
+argocd login localhost:8080 --insecure --username admin --password <password>
 ```
 
-To pin a specific chart version, add `version` to `helmfile.yaml`:
-
-```yaml
-releases:
-  - name: argocd
-    chart: argo/argo-cd
-    version: "9.4.5"   # pin version here
-```
-
----
-
-## 6. Apply the App-of-Apps (GitOps Bootstrap)
-
-Once ArgoCD is running, bootstrap GitOps by applying the App-of-Apps manifest:
+### Register prod cluster
 
 ```bash
-kubectl apply -f clusters/kind-shivam-playgroung-1/app-of-apps.yaml \
-  --context kind-shivam-playgroung-1
+argocd cluster add kind-shivam-playground-2 --name kind-shivam-playground-2 -y
 ```
 
-This creates an ArgoCD `Application` that watches:
-- **Repo:** `https://github.com/anandshivam44/platform-engineering-research.git`
-- **Branch:** `main`
-- **Path:** `clusters/kind-shivam-playgroung-1/apps`
-
-ArgoCD will automatically sync and deploy all application manifests in that path with `prune: true` and `selfHeal: true`.
-
----
-
-## 7. Teardown
-
-### Uninstall ArgoCD only
+Then patch the cluster secret with the Docker-internal IP (kind clusters need this):
 
 ```bash
-cd argocd-setup
-helmfile destroy --kube-context kind-shivam-playgroung-1
+PROD_IP=$(docker inspect shivam-playground-2-control-plane --format '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}')
+
+TOKEN=$(kubectl --context kind-shivam-playground-2 -n kube-system get secret argocd-manager-long-lived-token -o jsonpath='{.data.token}' | base64 -d)
+CA_DATA=$(kubectl --context kind-shivam-playground-2 -n kube-system get secret argocd-manager-long-lived-token -o jsonpath='{.data.ca\.crt}' | base64 -d | base64)
+CONFIG_JSON="{\"bearerToken\": \"$TOKEN\", \"tlsClientConfig\": {\"insecure\": false, \"caData\": \"$CA_DATA\"}}"
+
+kubectl --context kind-shivam-playgroung-1 -n argocd create secret generic cluster-kind-shivam-playground-2 \
+  --from-literal=name=kind-shivam-playground-2 \
+  --from-literal=server=https://${PROD_IP}:6443 \
+  --from-literal=config="$CONFIG_JSON"
+kubectl --context kind-shivam-playgroung-1 -n argocd label secret cluster-kind-shivam-playground-2 argocd.argoproj.io/secret-type=cluster
 ```
 
-### Delete the entire kind cluster
+Verify all clusters:
 
 ```bash
+argocd cluster list
+```
+
+## 5. Bootstrap — apply app-of-apps for each cluster
+
+All commands run against the management cluster where ArgoCD lives:
+
+```bash
+kubectl apply -f clusters/kind-shivam-playgroung-1/argocd-app-of-apps.yaml --context kind-shivam-playgroung-1
+kubectl apply -f clusters/kind-shivam-playground-2/argocd-app-of-apps.yaml --context kind-shivam-playgroung-1
+```
+
+### (Alternative) Use ApplicationSet instead of per-cluster app-of-apps
+
+```bash
+kubectl apply -f applicationsets/nginx.yaml --context kind-shivam-playgroung-1
+```
+
+## 6. Verify deployments
+
+```bash
+kubectl get pods -n nginx --context kind-shivam-playgroung-1
+kubectl get pods -n nginx --context kind-shivam-playground-2
+```
+
+Check chart versions:
+
+```bash
+argocd app list
+```
+
+## 7. Add a new application
+
+1. Create `base/<app>-values.yaml` with shared defaults
+2. For each cluster, create `clusters/<env>/<cluster>/argocd-apps/<app>.yaml`
+3. Commit and push — the app-of-apps picks it up automatically
+
+## 8. Teardown
+
+```bash
+argocd app delete playground-2-app-of-apps --cascade -y
+argocd app delete playground-1-app-of-apps --cascade -y
+
+kubectl --context kind-shivam-playgroung-1 -n argocd delete secret cluster-kind-shivam-playground-2
+
+cd argocd-setup && helmfile destroy --kube-context kind-shivam-playgroung-1
+
+kind delete cluster --name shivam-playground-2
 kind delete cluster --name shivam-playgroung-1
 ```
 
----
-
-## 8. Troubleshooting
-
-### Pods not starting
+## 9. Troubleshooting
 
 ```bash
-kubectl describe pod <pod-name> -n argocd --context kind-shivam-playgroung-1
-kubectl logs <pod-name> -n argocd --context kind-shivam-playgroung-1
-```
+# Pod status and logs
+kubectl describe pod <pod> -n argocd --context kind-shivam-playgroung-1
+kubectl logs <pod> -n argocd --context kind-shivam-playgroung-1
 
-### Port-forward disconnects
-
-Re-run the port-forward command. Consider running it in a dedicated terminal or using a tool like `kubectl-relay`.
-
-### ArgoCD app stuck in `Progressing`
-
-```bash
-# Force a sync
+# Force sync
 argocd app sync <app-name>
 
-# Or via kubectl
-kubectl patch application <app-name> -n argocd \
-  --type merge -p '{"operation":{"sync":{"revision":"HEAD"}}}'
-```
+# ArgoCD server and controller logs
+kubectl logs -n argocd -l app.kubernetes.io/name=argocd-server --context kind-shivam-playgroung-1 --tail=100
+kubectl logs -n argocd argocd-application-controller-0 --context kind-shivam-playgroung-1 --tail=100
 
-### Check ArgoCD server logs
-
-```bash
-kubectl logs -n argocd -l app.kubernetes.io/name=argocd-server \
-  --context kind-shivam-playgroung-1 --tail=100
-```
-
-### Check controller logs
-
-```bash
-kubectl logs -n argocd argocd-application-controller-0 \
-  --context kind-shivam-playgroung-1 --tail=100
-```
-
-### helmfile sync fails
-
-```bash
-# Update the Helm repo cache
-helm repo update
-
-# Re-run sync with debug output
-helmfile sync --kube-context kind-shivam-playgroung-1 --debug
+# Helmfile debug
+helm repo update && helmfile sync --kube-context kind-shivam-playgroung-1 --debug
 ```

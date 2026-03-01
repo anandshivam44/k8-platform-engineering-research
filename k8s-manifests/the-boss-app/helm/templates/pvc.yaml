@@ -1,0 +1,18 @@
+{{- if .Values.pvc.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "the-boss-app.fullname" . }}-pvc
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "the-boss-app.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.pvc.accessMode }}
+  {{- if .Values.pvc.storageClassName }}
+  storageClassName: {{ .Values.pvc.storageClassName }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.pvc.size }}
+{{- end }}

@@ -1,0 +1,2 @@
+# Dev cluster overrides for the-boss-app
+replicaCount: 2

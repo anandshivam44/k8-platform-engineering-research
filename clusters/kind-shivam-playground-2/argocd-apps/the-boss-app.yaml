@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kind-shivam-playground-2-the-boss-app
+  namespace: argocd
+  labels:
+    env: prod
+    app: the-boss-app
+spec:
+  project: default
+  sources:
+    - repoURL: https://github.com/anandshivam44/platform-engineering-research.git
+      targetRevision: main
+      ref: values
+    - repoURL: https://github.com/anandshivam44/platform-engineering-research.git
+      targetRevision: main
+      path: k8s-manifests/the-boss-app/helm
+      helm:
+        valueFiles:
+          - $values/base/the-boss-app-values.yaml
+          - $values/k8s-manifests/the-boss-app/helm-overrides/kind-shivam-playground-2.yaml
+  destination:
+    server: https://172.18.0.3:6443
+    namespace: the-boss-app
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
