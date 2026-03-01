@@ -1,4 +1,6 @@
 # Shared defaults for the-boss-app — overridden per cluster in clusters/<env>/values/the-boss-app.yaml
+fullnameOverride: the-boss-app
+
 replicaCount: 1
 
 service:
