@@ -14,8 +14,8 @@ spec:
       targetRevision: "22.5.3"
       helm:
         valueFiles:
-          - $values/k8s-manifests/nginx/values.yaml
-          - $values/k8s-manifests/nginx/helm-overrides/kind-shivam-playground-2.yaml
+          - $values/clusters/kind-shivam-playground-2/nginx/values.yaml
+          - $values/clusters/kind-shivam-playground-2/nginx/overrides.yaml
   destination:
     server: https://172.18.0.3:6443
     namespace: nginx

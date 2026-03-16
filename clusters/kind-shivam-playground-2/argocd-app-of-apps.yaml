@@ -1,18 +1,32 @@
 apiVersion: argoproj.io/v1alpha1
-kind: Application
+kind: ApplicationSet
 metadata:
   name: playground-2-app-of-apps
   namespace: argocd
 spec:
-  project: default
-  source:
-    repoURL: https://github.com/anandshivam44/platform-engineering-research.git
-    targetRevision: main
-    path: clusters/kind-shivam-playground-2/argocd-apps
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: argocd
-  syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
+  generators:
+    - list:
+        elements:
+          - name: nginx
+            targetRevision: main
+          - name: the-boss-app
+            targetRevision: main
+  template:
+    metadata:
+      name: 'playground-2-{{name}}'
+    spec:
+      project: default
+      source:
+        repoURL: https://github.com/anandshivam44/platform-engineering-research.git
+        targetRevision: '{{targetRevision}}'
+        path: 'clusters/kind-shivam-playground-2/{{name}}'
+        directory:
+          recurse: false
+          include: "argocd-application.yaml"
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: argocd
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true

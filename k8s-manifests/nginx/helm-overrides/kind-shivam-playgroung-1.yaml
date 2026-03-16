@@ -1,2 +1,0 @@
-# Dev cluster overrides for nginx
-replicaCount: 2

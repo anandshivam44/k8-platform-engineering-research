@@ -1,24 +1,26 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: kind-shivam-playgroung-1.nginx
+  name: kind-shivam-playgroung-1.the-boss-app
   namespace: argocd
+  labels:
+    env: dev
+    app: the-boss-app
 spec:
   project: default
   sources:
     - repoURL: https://github.com/anandshivam44/platform-engineering-research.git
       targetRevision: main
       ref: values
-    - repoURL: https://charts.bitnami.com/bitnami
-      chart: nginx
-      targetRevision: "22.5.3"
+    - repoURL: https://github.com/anandshivam44/platform-engineering-research.git
+      targetRevision: main
+      path: clusters/kind-shivam-playgroung-1/the-boss-app/helm
       helm:
         valueFiles:
-          - $values/k8s-manifests/nginx/values.yaml
-          - $values/k8s-manifests/nginx/helm-overrides/kind-shivam-playgroung-1.yaml
+          - $values/clusters/kind-shivam-playgroung-1/the-boss-app/overrides.yaml
   destination:
     server: https://kubernetes.default.svc
-    namespace: nginx
+    namespace: the-boss-app
   syncPolicy:
     automated:
       prune: true
