@@ -1,23 +1,26 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: kind-shivam-playgroung-1.nginx
+  name: kind-shivam-playgroung-1.product-1
   namespace: argocd
+  labels:
+    env: dev
+    app: product-1
 spec:
   project: default
   sources:
     - repoURL: https://github.com/anandshivam44/platform-engineering-research.git
       targetRevision: main
       ref: values
-    - repoURL: https://charts.bitnami.com/bitnami
-      chart: nginx
-      targetRevision: "22.5.3"
+    - repoURL: https://github.com/anandshivam44/platform-engineering-research.git
+      targetRevision: main
+      path: clusters/kind-shivam-playgroung-1/app-of-apps/product-1/helm
       helm:
         valueFiles:
-          - $values/clusters/kind-shivam-playgroung-1/nginx/values.yaml
+          - $values/clusters/kind-shivam-playgroung-1/app-of-apps/product-1/values.yaml
   destination:
     server: https://kubernetes.default.svc
-    namespace: nginx
+    namespace: product-1
   syncPolicy:
     automated:
       prune: true
