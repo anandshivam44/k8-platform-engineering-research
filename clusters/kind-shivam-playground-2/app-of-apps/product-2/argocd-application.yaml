@@ -13,7 +13,7 @@ metadata:
 spec:
   project: product-2
   source:
-    repoURL: https://github.com/anandshivam44/platform-engineering-research.git
+    repoURL: https://github.com/anandshivam44/k8-platform-engineering-research.git
     targetRevision: main
     path: manifests/product-2/kustomize
   destination:
