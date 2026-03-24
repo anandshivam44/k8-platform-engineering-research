@@ -73,14 +73,9 @@ repoServer:
       cpu: 500m
       memory: 1Gi
 
+# argo-cd chart has no applicationSet.enabled; replicas: 0 disables the controller workload.
 applicationSet:
-  resources:
-    requests:
-      cpu: 25m
-      memory: 32Mi
-    limits:
-      cpu: 100m
-      memory: 128Mi
+  replicas: 0
 
 notifications:
   resources:
